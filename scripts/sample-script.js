@@ -19,7 +19,7 @@ async function main() {
 
   await cimpledao.deployed();
 
-  console.log("Greeter deployed to:", cimpledao.address);
+  console.log("CimpleDao deployed to:", cimpledao.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
