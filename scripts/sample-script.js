@@ -15,11 +15,15 @@ async function main() {
 
   // We get the contract to deploy
   const CimpleDAO = await hre.ethers.getContractFactory("CimpleDAO");
-  const cimpledao = await CimpleDAO.deploy();
+  const nftaddress = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+  const cimpledao = await CimpleDAO.deploy(nftaddress);
 
   await cimpledao.deployed();
 
   console.log("CimpleDao deployed to:", cimpledao.address);
+  const metaaddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+  const response = await cimpledao.testnftmint(metaaddress,8000000000000000);
+  console.log(response.hash);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

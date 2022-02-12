@@ -6,7 +6,13 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+interface CiMPLENFT {
+    function mintTo(address recipient, uint256 price) external payable returns (uint256);
+    function getmintaddress() external payable returns (address[] memory);
+}
+
 contract CimpleDAO is ERC1155, Ownable {
+    address private CiMPLENFTaddress; 
     using SafeMath for uint256;
     //token id 
     uint256 public constant Cimple = 0;
@@ -63,7 +69,8 @@ contract CimpleDAO is ERC1155, Ownable {
     event StakingCimpleToken(address, uint256, uint256);
     event UnstakingCimpleToken (address indexed unstaker, uint256 stCiIndex, uint256 stCiTokenCount);
     // event calculatedCimpleIR (uint256 indexed ciIR, uint256 curTimeStamp);
-    constructor() ERC1155("") {
+    constructor(address nftaddress) ERC1155("") {
+        CiMPLENFTaddress = nftaddress;
         deployedStartTimeStamp = block.timestamp;
     }
     // get CMPG decimal
@@ -71,6 +78,18 @@ contract CimpleDAO is ERC1155, Ownable {
     //     return CMPGDecimal;
     // }
     /** Add multiple addresses to mintableRoleList */
+    function testnftmint( address rece, uint256 price) public payable returns (uint256) {
+        uint256  temp;
+        temp = CiMPLENFT(CiMPLENFTaddress).mintTo(rece, price );
+        return temp;
+    }
+
+    function testaddress() public payable returns (address[] memory) {
+        address[] memory temp;
+        temp = CiMPLENFT(CiMPLENFTaddress).getmintaddress();
+        return temp;
+    }
+
     function multipleAddressesToMintableRoleList(address[] memory addresses) public onlyOwner {
         for(uint256 i =0; i < addresses.length; i++) {
             singleAddressToMintableRoleList(addresses[i]);
@@ -86,6 +105,7 @@ contract CimpleDAO is ERC1155, Ownable {
             _addOrUpdateUserInfo(userAddress);
         }
     }
+
 
     /** Remove multiple addresses from mintableRoleList */
     function removeAddressesFromMintableRoleList(address[] memory addresses) public onlyOwner {
