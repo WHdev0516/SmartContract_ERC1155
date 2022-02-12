@@ -14,8 +14,14 @@ async function main() {
   // await hre.run('compile');
 
   // We get the contract to deploy
+  const CimpleNFT = await hre.ethers.getContractFactory("NFT");
+  const cimpleNFTContract = await CimpleNFT.deploy();
+  await cimpleNFTContract.deployed();
+
+
+  // We get the contract to deploy
   const CimpleDAO = await hre.ethers.getContractFactory("CimpleDAO");
-  const nftaddress = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+  const nftaddress = cimpleNFTContract.address;
   const cimpledao = await CimpleDAO.deploy(nftaddress);
 
   await cimpledao.deployed();
