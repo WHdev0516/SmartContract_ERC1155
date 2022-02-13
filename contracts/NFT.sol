@@ -43,9 +43,7 @@ contract NFT is ERC721, PullPayment, Ownable {
         currentTokenId.increment();
         uint256 newItemId = currentTokenId.current();
         _safeMint(recipient, newItemId);
-        mintuserlist[newItemId].mintuser = recipient ;
-        mintuserlist[newItemId].currentminttimestamp = block.timestamp;
-        mintuserlist[newItemId].price_value = msg.value;
+        mintuserlist.push(MintUserDetail(recipient, block.timestamp, msg.value));
         return newItemId;
     }
 

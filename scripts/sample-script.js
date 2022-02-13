@@ -18,6 +18,10 @@ async function main() {
   const cimpleNFTContract = await CimpleNFT.deploy();
   await cimpleNFTContract.deployed();
 
+  // NFT BaseUri
+  const uri = "https://bafybeic3ak32mpdg66javycderizmlkbcmvjbodftynppakatrcvsdgw6a.ipfs.dweb.link/metadata/";
+  cimpleNFTContract.setBaseTokenURI(uri);
+  console.log("cimpleNFTContract deployed to:", cimpleNFTContract.address);
 
   // We get the contract to deploy
   const CimpleDAO = await hre.ethers.getContractFactory("CimpleDAO");
@@ -28,8 +32,11 @@ async function main() {
 
   console.log("CimpleDao deployed to:", cimpledao.address);
   const metaaddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
-  const response = await cimpledao.testnftmint(metaaddress,8000000000000000);
-  console.log(response.hash);
+  const price = 8000000000000000;
+  await cimpleNFTContract.mintTo(metaaddress, {value : price.toString()});
+  await cimpleNFTContract.mintTo('0x71be63f3384f5fb98995898a86b02fb2426c5788', {value : price.toString()});
+  await cimpleNFTContract.mintTo('0xfabb0ac9d68b0b445fb7357272ff202c5651694a', {value : price.toString()});
+  // console.log(response.hash);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

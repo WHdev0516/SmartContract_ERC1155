@@ -7,8 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 interface CiMPLENFT {
-    function mintTo(address recipient, uint256 price) external payable returns (uint256);
-    function getmintaddress() external payable returns (address[] memory);
+    function getmintaddress() external view returns (address[] memory, uint256[] memory, uint256[] memory);
 }
 
 contract CimpleDAO is ERC1155, Ownable {
@@ -37,18 +36,18 @@ contract CimpleDAO is ERC1155, Ownable {
     uint256 private constant oneYearTimeStamp = 3154 * 1e4; // timestamp per year
     //whitelist    
     mapping(address => bool) public mintRoleList;
-    mapping(address => bool) public registeredUsers;
     uint256 public totalMintRoleList;
 
     // user info structure
     struct UserDetail {
+        address userAddress;
         uint256 cimpleValue;
         uint256 stCimpleValue;
         uint256 CMPGValue;
-        uint256 referralID;
-        uint256 referredBy;
+        string referralID;
+        string referredBy;
     }
-    mapping (address=>UserDetail) private usersInfo;
+    UserDetail[] private usersInfo;
 
     //staking part config
     struct StakeHolder {
@@ -67,7 +66,9 @@ contract CimpleDAO is ERC1155, Ownable {
     // event collection
     event PayFee(address, uint256, uint256);
     event StakingCimpleToken(address, uint256, uint256);
-    event UnstakingCimpleToken (address indexed unstaker, uint256 stCiIndex, uint256 stCiTokenCount);
+    event UnstakingCimpleToken (address indexed, uint256, uint256);
+    event CreatedNewUser(address indexed, string);
+    event UpdatedUserInfo(address, uint256, uint256, uint256, string, string);
     // event calculatedCimpleIR (uint256 indexed ciIR, uint256 curTimeStamp);
     constructor(address nftaddress) ERC1155("") {
         CiMPLENFTaddress = nftaddress;
@@ -77,17 +78,16 @@ contract CimpleDAO is ERC1155, Ownable {
     // function getCMPGDecimal() public view returns (uint256){
     //     return CMPGDecimal;
     // }
-    /** Add multiple addresses to mintableRoleList */
-    function testnftmint( address rece, uint256 price) public payable returns (uint256) {
-        uint256  temp;
-        temp = CiMPLENFT(CiMPLENFTaddress).mintTo(rece, price );
-        return temp;
-    }
+    // /** Add multiple addresses to mintableRoleList */
+    // function testnftmint( address rece, uint256 price) public payable returns (uint256) {
+    //     uint256  temp;
+    //     temp = CiMPLENFT(CiMPLENFTaddress).mintTo(rece, price );
+    //     return temp;
+    // }
 
-    function testaddress() public payable returns (address[] memory) {
-        address[] memory temp;
-        temp = CiMPLENFT(CiMPLENFTaddress).getmintaddress();
-        return temp;
+    function getNFTUserListAtFirst() public view returns (address[] memory users, uint256[] memory times, uint256[] memory prices) {
+        (users, times, prices) = CiMPLENFT(CiMPLENFTaddress).getmintaddress();
+        return (users, times, prices);
     }
 
     function multipleAddressesToMintableRoleList(address[] memory addresses) public onlyOwner {
@@ -191,25 +191,67 @@ contract CimpleDAO is ERC1155, Ownable {
         }
         return (cimpleIR, stepPrice, usedDayCount);
     }
+
+    function isUser(address _address) public view returns(bool, uint256) {
+       for (uint256 s = 0; s < usersInfo.length; s += 1){
+           if (_address == usersInfo[s].userAddress) return (true, s);
+       }
+       return (false, 0);
+    }
     // ADD, EDIT, DELETE   
     function _addOrUpdateUserInfo(address userAddress) internal {
-        if(registeredUsers[userAddress]){
-            UserDetail storage tempUser = usersInfo[userAddress];
+        (bool _isUser, uint256 s) = isUser(userAddress);
+        if(_isUser){
+            UserDetail storage tempUser = usersInfo[s];
             tempUser.cimpleValue = balanceOf(userAddress, Cimple);
             tempUser.stCimpleValue = balanceOf(userAddress, stCimple);
             tempUser.CMPGValue = balanceOf(userAddress, CMPG);
         }else{
-            registeredUsers[userAddress] = true;
-            UserDetail memory tempUser = UserDetail(balanceOf(userAddress, Cimple), balanceOf(userAddress, stCimple), balanceOf(userAddress, CMPG), 0, 0);
-            usersInfo[userAddress] = tempUser;
+            usersInfo.push(UserDetail(userAddress, 0, 0, 0 , "", ""));
         }
-        
     }
 
+    function createAccount (address userAddress, string memory referralID) public payable returns(bool) {
+        (bool _isUser, ) = isUser(userAddress);
+        if(!_isUser) {
+            usersInfo.push(UserDetail(userAddress,balanceOf(userAddress, Cimple), balanceOf(userAddress, stCimple), balanceOf(userAddress, CMPG), referralID, ""));
+            emit CreatedNewUser(userAddress, referralID);
+        }
+        return true;
+    }
+
+    function updateUserInfo (address userAddress, string memory referredByID) public payable returns (bool) {
+        (bool _isUser, uint256 s) = isUser(userAddress);
+        if(_isUser) {
+            UserDetail storage tempUser = usersInfo[s];
+            tempUser.cimpleValue = balanceOf(userAddress, Cimple);
+            tempUser.stCimpleValue = balanceOf(userAddress, stCimple);
+            tempUser.CMPGValue = balanceOf(userAddress, CMPG);
+            tempUser.referredBy = referredByID;
+            emit UpdatedUserInfo(userAddress, tempUser.cimpleValue, tempUser.stCimpleValue, tempUser.CMPGValue, tempUser.referralID, referredByID);
+        }
+        return true;
+    }
     function getUserInfo(address userAddress) external view returns( UserDetail memory tempUserInfo ) {
-        require(registeredUsers[userAddress], "error: User does not exist on chain data.");
-        tempUserInfo = usersInfo[userAddress];
+        (bool _isUser, uint256 s) = isUser(userAddress);
+        if(_isUser) {
+            tempUserInfo = usersInfo[s];
+        }else {
+            tempUserInfo = UserDetail(userAddress, 0, 0, 0, "", "");
+        }
+        
         return tempUserInfo;
+    }
+
+    function getUsersInfo() external view returns (address[] memory, string[] memory) {
+        uint256 usersCount = usersInfo.length;
+        address[] memory users = new address[](usersCount);
+        string[] memory referralIDs = new string[](usersCount);
+        for (uint i = 0; i < usersCount; i++) {
+            users[i] = (usersInfo[i].userAddress);
+            referralIDs[i] = (usersInfo[i].referralID);
+        }
+        return (users,referralIDs);
     }
 
     // staking part is here ===================
