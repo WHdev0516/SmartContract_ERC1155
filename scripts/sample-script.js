@@ -29,14 +29,22 @@ async function main() {
   await NFTUtilsContract.deployed();
   console.log("NFTUtilsContract deployed to:", NFTUtilsContract.address);
 
+
+    // Vote Utils 
+    const VoteUtils = await hre.ethers.getContractFactory("VoteUtils");
+    const VoteUtilsContract = await VoteUtils.deploy();
+    await VoteUtilsContract.deployed();
+    console.log("VoteUtilsContract deployed to:", VoteUtilsContract.address);
+
   // We get the contract to deploy
   const CimpleDAO = await hre.ethers.getContractFactory("CimpleDAO");
-  const cimpledao = await CimpleDAO.deploy(NFTUtilsContract.address);
+  const cimpledao = await CimpleDAO.deploy(NFTUtilsContract.address,VoteUtilsContract.address);
 
   await cimpledao.deployed();
 
   console.log("CimpleDao deployed to:", cimpledao.address);
-  await NFTUtilsContract.changeOwner(cimpledao.address)
+  await NFTUtilsContract.changeOwner(cimpledao.address);
+  await VoteUtilsContract.changeOwner(cimpledao.address);
   const metaaddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
   const price = 8000000000000000;
   await cimpleNFTContract.mintTo(metaaddress, {value : price.toString()});
