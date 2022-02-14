@@ -18,6 +18,7 @@ contract NFT is ERC721, PullPayment, Ownable {
         address mintuser;
         uint256 currentminttimestamp;
         uint256 price_value;
+        uint256 tokenID;
     }
 
     MintUserDetail[]  public  mintuserlist;
@@ -43,7 +44,7 @@ contract NFT is ERC721, PullPayment, Ownable {
         currentTokenId.increment();
         uint256 newItemId = currentTokenId.current();
         _safeMint(recipient, newItemId);
-        mintuserlist.push(MintUserDetail(recipient, block.timestamp, msg.value));
+        mintuserlist.push(MintUserDetail(recipient, block.timestamp, msg.value, newItemId));
         return newItemId;
     }
 
@@ -53,16 +54,18 @@ contract NFT is ERC721, PullPayment, Ownable {
     }
 
     // @dev Return mint address list
-    function getmintaddress() external view returns (address[] memory, uint256[] memory, uint256[] memory) {
+    function getmintaddress() external view returns (address[] memory, uint256[] memory, uint256[] memory, uint256[] memory) {
         address[] memory tempuserlist =  new address[](currentTokenId.current());
         uint256[] memory temptime =  new uint256[](currentTokenId.current());
         uint256[] memory tempprice =  new uint256[](currentTokenId.current());
+        uint256[] memory tokenIDs =  new uint256[](currentTokenId.current());
         for (uint i = 0; i < currentTokenId.current(); i++) {
             tempuserlist[i] = (mintuserlist[i].mintuser);
             temptime[i] = (mintuserlist[i].currentminttimestamp);
             tempprice[i] = (mintuserlist[i].price_value);
+            tokenIDs[i] = (mintuserlist[i].tokenID);
         }
-        return (tempuserlist,temptime,tempprice);
+        return (tempuserlist,temptime,tempprice, tokenIDs);
     }
 
     // @dev Sets the base token URI prefix

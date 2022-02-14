@@ -22,15 +22,21 @@ async function main() {
   const uri = "https://bafybeic3ak32mpdg66javycderizmlkbcmvjbodftynppakatrcvsdgw6a.ipfs.dweb.link/metadata/";
   cimpleNFTContract.setBaseTokenURI(uri);
   console.log("cimpleNFTContract deployed to:", cimpleNFTContract.address);
+  
+  // NFT Utils 
+  const NFTUtils = await hre.ethers.getContractFactory("NFTUtils");
+  const NFTUtilsContract = await NFTUtils.deploy(cimpleNFTContract.address);
+  await NFTUtilsContract.deployed();
+  console.log("NFTUtilsContract deployed to:", NFTUtilsContract.address);
 
   // We get the contract to deploy
   const CimpleDAO = await hre.ethers.getContractFactory("CimpleDAO");
-  const nftaddress = cimpleNFTContract.address;
-  const cimpledao = await CimpleDAO.deploy(nftaddress);
+  const cimpledao = await CimpleDAO.deploy(NFTUtilsContract.address);
 
   await cimpledao.deployed();
 
   console.log("CimpleDao deployed to:", cimpledao.address);
+  await NFTUtilsContract.changeOwner(cimpledao.address)
   const metaaddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
   const price = 8000000000000000;
   await cimpleNFTContract.mintTo(metaaddress, {value : price.toString()});

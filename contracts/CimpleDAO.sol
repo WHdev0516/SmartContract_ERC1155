@@ -6,13 +6,11 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-interface CiMPLENFT {
-    function getmintaddress() external view returns (address[] memory, uint256[] memory, uint256[] memory);
-}
+import "./NFTUtils.sol";
 
 contract CimpleDAO is ERC1155, Ownable {
-    address private CiMPLENFTaddress; 
     using SafeMath for uint256;
+    NFTUtils private nftUtils;
     //token id 
     uint256 public constant Cimple = 0;
     uint256 public constant stCimple = 1;
@@ -21,8 +19,6 @@ contract CimpleDAO is ERC1155, Ownable {
     mapping(uint256 => uint256) public tokenSupply;
     mapping(uint256 => uint256) public tokenBurn;
     mapping(uint256 => uint256) public tokenSupplyLimit;
-    mapping(uint256 => address) nftOwners;
-    uint256 public nftIdIndex;
     
     // Decimal config
     uint256 public constant CMPGDecimal = 18; //CMPG decimal
@@ -35,7 +31,7 @@ contract CimpleDAO is ERC1155, Ownable {
     uint256 private constant oneDayTimeStamp = 864 * 1e2; // timestamp per day
     uint256 private constant oneYearTimeStamp = 3154 * 1e4; // timestamp per year
     //whitelist    
-    mapping(address => bool) public mintRoleList;
+    mapping(address => bool) private mintRoleList;
     uint256 public totalMintRoleList;
 
     // user info structure
@@ -56,7 +52,7 @@ contract CimpleDAO is ERC1155, Ownable {
     }
     StakeHolder[] internal stakeholders; 
     // End staking part config
-
+    
     // mintable modifier
     modifier mintable() {
         require(mintRoleList[msg.sender] || msg.sender == owner(), 'Sorry, this address is not on the whitelist.');
@@ -69,10 +65,14 @@ contract CimpleDAO is ERC1155, Ownable {
     event UnstakingCimpleToken (address indexed, uint256, uint256);
     event CreatedNewUser(address indexed, string);
     event UpdatedUserInfo(address, uint256, uint256, uint256, string, string);
+
+    // event AddNFTUsersInfo(address, uint256, uint256);
+    event ClaimRewardFirstCimpleForNFT(address, uint256, uint256);
+    event ClaimRewardStreamingForNFT(address, uint256, uint256);
     // event calculatedCimpleIR (uint256 indexed ciIR, uint256 curTimeStamp);
-    constructor(address nftaddress) ERC1155("") {
-        CiMPLENFTaddress = nftaddress;
+    constructor(address _nftUtils) ERC1155("") {
         deployedStartTimeStamp = block.timestamp;
+        nftUtils = NFTUtils(_nftUtils);
     }
     // get CMPG decimal
     // function getCMPGDecimal() public view returns (uint256){
@@ -85,9 +85,9 @@ contract CimpleDAO is ERC1155, Ownable {
     //     return temp;
     // }
 
-    function getNFTUserListAtFirst() public view returns (address[] memory users, uint256[] memory times, uint256[] memory prices) {
-        (users, times, prices) = CiMPLENFT(CiMPLENFTaddress).getmintaddress();
-        return (users, times, prices);
+    function getNFTUserListAtFirst() public view returns (address[] memory users, uint256[] memory times, uint256[] memory prices, uint256[] memory tokenIDs) {
+        (users, times, prices, tokenIDs) = CiMPLENFT(nftUtils.getCiMPLENFTaddress()).getmintaddress();
+        return (users, times, prices, tokenIDs);
     }
 
     function multipleAddressesToMintableRoleList(address[] memory addresses) public onlyOwner {
@@ -271,7 +271,7 @@ contract CimpleDAO is ERC1155, Ownable {
     * @notice A method to add a stakeholder.
     * @param _stakeholder The stakeholder to add.
     */
-    function addStakeholder(address _stakeholder, uint256 _timeStamp) public {
+    function addStakeholder(address _stakeholder, uint256 _timeStamp) private {
         (bool _isStakeholder, ) = isStakeholder(_stakeholder);
         if(!_isStakeholder) stakeholders.push(StakeHolder(_stakeholder, _timeStamp));
     }
@@ -280,7 +280,7 @@ contract CimpleDAO is ERC1155, Ownable {
         * @notice A method to remove a stakeholder.
         * @param _stakeholder The stakeholder to remove.
         */
-    function removeStakeholder(address _stakeholder) public {
+    function removeStakeholder(address _stakeholder) private {
         (bool _isStakeholder, uint256 s) = isStakeholder(_stakeholder);
         if(_isStakeholder){
             stakeholders[s] = stakeholders[stakeholders.length - 1];
@@ -303,15 +303,24 @@ contract CimpleDAO is ERC1155, Ownable {
     * @param _stake The size of the stake to be created.
     */
     function createStake(address staker, uint256 _stake) public payable returns (bool) {
-        require(_stake <= balanceOf(staker, Cimple), 'Error, stake amount must be >= holding amount of Cimple Token');
+        require(_stake <= balanceOf(staker, Cimple), 'Error stake amount must be >= holding amount of Cimple Token');
+        
+        (bool _isStakeholder, uint256 s) = isStakeholder(staker);
+        if(!_isStakeholder) addStakeholder(staker, block.timestamp);
+        else {
+            StakeHolder memory stakeholder = stakeholders[s];
+            uint256 rewardOfCMPG = 0;
+            (rewardOfCMPG, , ) = calculateReward(staker, stakeholder.holdTimeStamp, block.timestamp);
+            _mint(staker, CMPG, rewardOfCMPG, "0x000");
+            tokenSupply[CMPG] = tokenSupply[CMPG].add(rewardOfCMPG);
+
+            stakeholders[s].holdTimeStamp = block.timestamp;
+        } 
         _burn(staker, Cimple, _stake);
         _mint(staker, stCimple, _stake, "0x000");
         tokenSupply[stCimple] = tokenSupply[stCimple].add(_stake);
         tokenSupply[Cimple] = tokenSupply[Cimple].sub(_stake);
         tokenBurn[Cimple] = tokenBurn[Cimple].add(_stake);
-        (bool _isStakeholder, uint256 s) = isStakeholder(staker);
-        if(!_isStakeholder) addStakeholder(staker, block.timestamp);
-        else stakeholders[s].holdTimeStamp = block.timestamp;
         _addOrUpdateUserInfo(staker);
         emit StakingCimpleToken(staker, stCimple, _stake);
         return true;
@@ -333,9 +342,10 @@ contract CimpleDAO is ERC1155, Ownable {
             tokenSupply[stCimple] = tokenSupply[stCimple].sub(_stake);
             tokenSupply[Cimple] = tokenSupply[Cimple].add(_stake);
             tokenBurn[stCimple] = tokenBurn[stCimple].add(_stake);
+            // minting cmpg when unstaking
+            _mint(unstaker, CMPG, rewardOfCMPG, "0x000");
+            tokenSupply[CMPG] = tokenSupply[CMPG].add(rewardOfCMPG);
             if(balanceOf(unstaker, stCimple) == 0) { 
-                _mint(unstaker, CMPG, rewardOfCMPG, "0x000");
-                tokenSupply[CMPG] = tokenSupply[CMPG].add(rewardOfCMPG);
                 removeStakeholder(unstaker);
             } else{
                 stakeholders[s].holdTimeStamp = block.timestamp;
@@ -476,5 +486,60 @@ contract CimpleDAO is ERC1155, Ownable {
         _addOrUpdateUserInfo(spender);
         emit PayFee(spender, Cimple, cimpleAmount);
         return true;
+    }
+
+    // NFT
+    function claimFirstCimpleForNFT(address _userAddress, uint256 _tokenID) public payable returns(bool){
+        (uint256[] memory _tokenIDs, uint256[] memory _prices, ) = nftUtils.filterNftDetail(_userAddress);
+        bool _flag = false;
+        uint256 _selectedTokenPrice;
+        for (uint256 i = 0; i < _tokenIDs.length; i += 1){
+            if(_tokenID == _tokenIDs[i]){
+                _flag = true;
+                _selectedTokenPrice = _prices[i];
+            } 
+        }
+        require(nftUtils.getNftAwardList(_tokenID) == false && _flag, "This user is not available for this rewards.");
+
+        (uint256 _cimpleIR, ,) = calculateCimpleIR(block.timestamp);
+        uint256 _rewardCimpleAmount = _selectedTokenPrice.div(_cimpleIR);
+        _mint(_userAddress, Cimple, _rewardCimpleAmount,"0x000"); //sending token to user
+        tokenSupply[Cimple] = tokenSupply[Cimple].add(_rewardCimpleAmount);
+        _addOrUpdateUserInfo(_userAddress);
+
+        nftUtils.setNftAwardList(_tokenID, true);
+        nftUtils.increaseNftAwardListCount();
+        emit ClaimRewardFirstCimpleForNFT(_userAddress, _tokenID, _rewardCimpleAmount);
+        return true;
+    }
+    function claimRewardStreamingForNFT(address _address, uint256 _tokenID) public payable returns( bool) {
+        (uint256 _cimpleIR, ,) = calculateCimpleIR(block.timestamp);
+        (uint256 _rate, uint256 _mintTimestamp) = nftUtils.calculateStreamingRateForNFT(_address, _tokenID, block.timestamp, _cimpleIR);
+        if(_rate > 0) {
+
+            uint256 _currentTimeStamp = block.timestamp;
+            uint256 _periodTimeStamp =0;
+            (bool _isNftUser, uint256 s) = nftUtils.isNftUser(_address, _tokenID);
+            if(_isNftUser == false) {
+                nftUtils.addNFTUsersInfo(_address, _tokenID, block.timestamp);
+                _periodTimeStamp = _currentTimeStamp.sub(_mintTimestamp);
+            } 
+            else {
+                (, , uint256 _actionTimestamp) = nftUtils.getNFTUsersInfoByIndex(s);
+                 _periodTimeStamp = _currentTimeStamp.sub(_actionTimestamp);
+                 nftUtils.setNFTUsersInfoByIndex(s, block.timestamp);
+            } 
+            uint256 _usedDayCount = _periodTimeStamp.div(oneDayTimeStamp).mod(365);
+            uint256 _amountOfReward = _rate.mul(_usedDayCount);
+
+            _mint(_address, Cimple, _amountOfReward,"0x000"); //sending token to user
+            tokenSupply[Cimple] = tokenSupply[Cimple].add(_amountOfReward);
+            
+            _addOrUpdateUserInfo(_address);
+            emit ClaimRewardStreamingForNFT(_address, _tokenID, _amountOfReward);
+            return true;
+        }
+        return false;
+        
     }
 }
