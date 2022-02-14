@@ -37,24 +37,6 @@ contract CimpleDAO is ERC1155, Ownable {
     //whitelist    
     mapping(address => bool) public mintRoleList;
     uint256 public totalMintRoleList;
-    // vote info structure
-    struct VoteDetail {
-        uint256 voteid;
-        string description;
-        uint256 agreecount;
-        uint256 oppositecount;
-        address[] voters;
-        uint256 createtime;
-        uint256 endtime;
-    }
-    // votable addresslist
-    mapping(address => bool) public votablelist;
-    uint256 public votablelistcounter = 0;
-    mapping(address => bool) public votecreatablelist;
-    uint256 public votecreatablelistcounter = 0;
-
-    mapping(uint => VoteDetail) public votelist;
-    uint private votecounter = 0;
 
     // user info structure
     struct UserDetail {
@@ -81,17 +63,6 @@ contract CimpleDAO is ERC1155, Ownable {
         _;
     }
 
-    // votable modifier
-    modifier votable() {
-        require(votablelist[msg.sender], 'Sorry, this address is not on the votable list.');
-        _;
-    }
-
-    // vote creatable modifier
-    modifier votecreatable() {
-        require(votecreatablelist[msg.sender], 'Sorry, this address is not on the vote creatable list.');
-        _;
-    }
     // event collection
     event PayFee(address, uint256, uint256);
     event StakingCimpleToken(address, uint256, uint256);
@@ -235,12 +206,6 @@ contract CimpleDAO is ERC1155, Ownable {
             tempUser.cimpleValue = balanceOf(userAddress, Cimple);
             tempUser.stCimpleValue = balanceOf(userAddress, stCimple);
             tempUser.CMPGValue = balanceOf(userAddress, CMPG);
-            if ((tempUser.CMPGValue*100)/tokenSupply[CMPG] > 10) {
-                votablelist[userAddress] = true;
-            }
-            if ((tempUser.CMPGValue*100)/tokenSupply[CMPG] > 1) {
-                votecreatablelist[userAddress] = true;
-            }
         }else{
             usersInfo.push(UserDetail(userAddress, 0, 0, 0 , "", ""));
         }
@@ -485,67 +450,6 @@ contract CimpleDAO is ERC1155, Ownable {
         return (owners,prices);
     }
     // End staking part 
-
-    //Vote feature
-    function makeproposal(address createaddress, string memory des, uint256 endtime, uint256 starttime) public payable votecreatable {
-        votelist[votecounter] = VoteDetail(votecounter, des, 0, 0, new address[](0), starttime, endtime);
-        votelist[votecounter].voters.push(createaddress);
-        votecounter++;
-    }
-
-    function voteAction(address voteaddress, uint256 vote_id ,bool proposal) external votable returns (bool ) {
-        address[] storage  tempvoters = votelist[vote_id].voters; 
-        tempvoters.push(voteaddress);
-        uint256 tempvoteid = votelist[vote_id].voteid; 
-        uint256 tempagree = votelist[vote_id].agreecount; 
-        uint256  tempopposite = votelist[vote_id].oppositecount; 
-        string memory tempdes = votelist[vote_id].description; 
-        uint256 tempcreate = votelist[vote_id].createtime; 
-        uint256 tempend = votelist[vote_id].endtime; 
-        bool  checkaddress = _checkVoteAddress(voteaddress,tempvoters);
-        if (checkaddress) {
-            if (proposal) {
-                votelist[vote_id] = VoteDetail(tempvoteid, tempdes, tempagree++, tempopposite, tempvoters, tempcreate, tempend);
-            }
-            else {
-                votelist[vote_id] = VoteDetail(tempvoteid, tempdes, tempagree, tempopposite++, tempvoters, tempcreate, tempend);
-            }
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
-
-    function _checkVoteAddress(address p_voteaddress, address[] memory p_voters) private pure returns (bool ) {
-        bool checkflag = false;
-        for (uint i = 0; i < p_voters.length; i++)
-        {
-            if (p_voters[i] == p_voteaddress) {
-                checkflag = true;
-            }
-        }
-        return checkflag;
-    }
-
-    function voteresult() external view returns (uint256[] memory, uint256[] memory, uint256[] memory, string[] memory, uint256[] memory, uint256[] memory ) {
-        uint256[] memory tempvoteidlist = new uint256[](votecounter); 
-        uint256[] memory tempagree = new uint256[](votecounter); 
-        uint256[] memory tempopposite = new uint256[](votecounter);
-        uint256[] memory tempcreatetime = new uint256[](votecounter);
-        uint256[] memory tempendtime = new uint256[](votecounter);
-        string[] memory tempdes = new string[](votecounter);
-        for (uint i = 0; i < votecounter; i++) {
-            tempvoteidlist[i] = (votelist[i].voteid);
-            tempagree[i] = (votelist[i].agreecount);
-            tempopposite[i] = (votelist[i].oppositecount);
-            tempdes[i] = (votelist[i].description);
-            tempcreatetime[i] = (votelist[i].createtime);
-            tempendtime[i] = (votelist[i].endtime);
-        }
-        return (tempvoteidlist,tempagree,tempopposite,tempdes,tempcreatetime,tempendtime);
-    }
-    //End Vote feature
 
     // Fee main functions
     function payFee() public payable returns ( bool ) {
